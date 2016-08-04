@@ -1,0 +1,6 @@
+---
+shared_repos:
+- remote: git@github.com:schlueter/seer
+  version: master
+  guest_path: /home/vagrant/seer
+  host_path: /Users/bschlueter/workspace/personal/seer

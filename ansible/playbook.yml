@@ -1,0 +1,55 @@
+---
+- hosts: all
+  become: yes
+  tasks:
+  - name: Add development hostnames to hosts file
+    delegate_to: localhost
+    become: yes
+    lineinfile:
+      dest: /etc/hosts
+      line: '{{ guest_ip_address }} {{ item }}'
+    with_items:
+      - 'www.{{ hostname }}'
+
+  - name: Get uid
+    delegate_to: localhost
+    become: no
+    command: id -u
+    register: uid
+    changed_when: no
+
+  - name: Add shared repos to exports file
+    delegate_to: localhost
+    become: yes
+    lineinfile:
+      dest: /etc/exports
+      line: "'{{ item.host_path }}' {{ guest_ip_address }} -alldirs -mapall={{ uid.stdout }}"
+    with_items: "{{ shared_repos }}"
+    notify: Update nfsd
+
+  - meta: flush_handlers
+
+  - name: Update or Clone source
+    delegate_to: localhost
+    become: no
+    git: >
+      repo={{ item.remote }}.git
+      dest={{ item.host_path }}
+      accept_hostkey=yes
+    with_items: "{{ shared_repos }}"
+    ignore_errors: yes
+
+  - name: Create mounts for shared repos
+    mount:
+      fstype=nfs
+      name={{ item.guest_path }}
+      state=mounted
+    args:
+      src: "{{ host_ip_address }}:{{ item.host_path }}"
+    with_items: "{{ shared_repos }}"
+
+  handlers:
+  - name: Update nfsd
+    delegate_to: localhost
+    become: yes
+    command: nfsd update
